@@ -65,13 +65,16 @@ def print_ascii(luminance, invert, rowsz):
     i = 0
     for lum in luminance:
         i += 1
-        if i % xres == 0:
+        if i % rowsz == 0:
             print('\n', end='')
         else: 
             if invert: 
                 print_lum(lum, lt)
             else: 
                 print_lum(lum, ge)
+
+def print2D(array, rowsz):
+
 
 if __name__ == '__main__':
     import sys
