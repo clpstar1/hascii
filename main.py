@@ -3,41 +3,8 @@ from more_itertools import take
 from functools import reduce
 from operator import lt, ge
 from argparse import ArgumentParser
+from split import splitH, splitV
 
-
-def splitH(array, rowsz): 
-    res, tmp = ([], [])
-    i = 0 
-    for el in array: 
-        i += 1 
-        if i % rowsz == 0:
-            tmp.append(el)
-            res.append(tmp)
-            tmp = []
-        else:
-            tmp.append(el)
-    if len(tmp) > 0: res.append(tmp)
-    
-    return res
-
-
-def splitV(array, rowsz, colsz):
-    cols = int(rowsz / colsz) 
-    res = []
-    for i in range(0, cols):
-        res.append([])
-    colIndex = 0
-    i = 0
-    for el in array: 
-        i += 1
-        # switch col 
-        if i % colsz == 0: 
-            res[colIndex].append(el)
-            colIndex = (colIndex + 1) % cols  
-        else: 
-            res[colIndex].append(el)
-
-    return list(filter(lambda l : l != [], res))
 
 def compress(array, blockdim, size): 
      
@@ -55,13 +22,13 @@ def compress(array, blockdim, size):
     
     return res 
 
-def print_lum(val, op, compare = 128):
+def print_lum(val, op, compare):
     if op(val, compare):
         print('.', end='')
     else:
         print('#', end='')
 
-def print_ascii(luminance, invert, rowsz):
+def print_ascii(luminance, invert, rowsz, compare = 128):
     i = 0
     for lum in luminance:
         i += 1
@@ -69,42 +36,63 @@ def print_ascii(luminance, invert, rowsz):
             print('\n', end='')
         else: 
             if invert: 
-                print_lum(lum, lt)
+                print_lum(lum, lt, compare)
             else: 
-                print_lum(lum, ge)
+                print_lum(lum, ge, compare)
 
-def print2D(array, rowsz):
+def get_divs(x_orig):
+    x_orig
 
+    divisors = []
+    for rowsz in range(2, int(x_orig / 2)):
+        if x_orig % rowsz == 0:
+            divisors.append(rowsz)
+    
+    return divisors
+
+def crop_even(img):
+    x, y = img.size
+    crop = False 
+    if x % 2 != 0: x-=1; crop = True 
+    if y % 2 != 0: y-=1; crop = True 
+
+    if crop:
+        img = img.crop((0, 0, x, y))
+    return img 
 
 if __name__ == '__main__':
     import sys
 
     parser = ArgumentParser()
     parser.add_argument('filename')
-    parser.add_argument('-invert', default=False, action='store_true')
+    parser.add_argument('-i', default=False, action='store_true')
+    parser.add_argument('-c', default=128)
 
     args = parser.parse_args()
 
     # convert to black/white
     img = Image.open(args.filename).convert('LA')
+    
+    img = crop_even(img)
 
-    x, y = img.size 
-    if x % 2 != 0: x -= 1
-    if y % 2 != 0:  y -= 1
-
-    img = img.crop((0, 0, 0 + x, 0 + y))
+    x, y = img.size
 
     aspectRatio = x / y
 
+    divs = get_divs(x)
+
     luminance = list(map(lambda data: data[0], img.getdata()))
 
+    for div in divs:
 
-    xres = x / 2
-    yres = int(xres * (1/aspectRatio))
-    
-    xdim = int(x / xres)
-    ydim = int(y / yres)
+        rows = int(x / div) 
 
-    res = compress(list(luminance), (xdim, ydim), (x, y))
+        if rows > 40:
+            cols = int(rows * (1/aspectRatio))
+            
+            xdim = int(x / rows)
+            ydim = int(y / cols)
 
-    print_ascii(res, args.invert, xres)
+            res = compress(list(luminance), (xdim, ydim), (x, y))
+
+            print_ascii(res, args.i, rows, int(args.c))

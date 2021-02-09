@@ -1,5 +1,6 @@
+__pycache__
+.vscode
+img
 Include
 Lib
 Scripts
-.vscode
-img
