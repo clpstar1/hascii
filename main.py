@@ -60,6 +60,13 @@ def crop_even(img):
         img = img.crop((0, 0, x, y))
     return img 
 
+
+def get_available_row_sizes(x):
+    divs = get_divs(x)
+    fil = lambda f : list(filter(lambda f : f > 40 and f < 300, f))
+    mapp = lambda div : int(x / div) 
+    return fil(map(mapp, divs))
+
 if __name__ == '__main__':
     import sys
 
@@ -77,16 +84,14 @@ if __name__ == '__main__':
 
     x, y = img.size
 
-    aspectRatio = x / y  
+      
 
-    divs = get_divs(x)
-    fil = lambda f : list(filter(lambda f : f > 40 and f < 300, f))
-    mapp = lambda div : int(x / div) 
-
-    rowses = fil(map(mapp, divs))
+    avail_rowsz = get_available_row_sizes(x)
 
     tries = 10 
-    while rowses == [] and tries > 0:
+
+    # crop x and y to even dimensions 
+    while avail_rowsz == [] and tries > 0:
         tries -= 1
         x, y = img.size 
         x -= 2
@@ -94,13 +99,11 @@ if __name__ == '__main__':
         img = img.crop((0, 0, x, y))
         x, y = img.size
         divs = get_divs(x)
-        rowses = fil(map(mapp, divs))
-
-    # luminance = list(map(lambda data: data[0], img.getdata()))
+        avail_rowsz = fil(map(mapp, divs))
 
     luminance = list(map(lambda data: data[0], img.getdata()))
 
-    '''
+
     keep = True 
     count = 0
     res = []
@@ -111,10 +114,13 @@ if __name__ == '__main__':
         if keep:
             res.append(data[0])
 
-    y = y / 2
-    '''
+    y = int(y / 2)
+
+    aspectRatio = x / y
+
+    luminance = res 
     
-    for rows in rowses:
+    for rows in avail_rowsz:
         cols = int(rows * (1/aspectRatio))
         xdim = int(x / rows)
         ydim = int(y / cols)
