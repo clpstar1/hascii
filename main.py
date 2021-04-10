@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from PIL import Image
+from PIL import Image, ImageFont, ImageDraw
 from more_itertools import take
 from functools import reduce
 from operator import lt, ge
@@ -211,39 +211,96 @@ def binarize(lums, compare = 128, invert=False):
     if invert: return list(map(lambda pixel : 1 if pixel <= compare else 0, lums))
     else: return list(map(lambda pixel : 1 if pixel > compare else 0, lums))
 
+def prepare_image(path_to_image):
+    # convert to black/white
+    img = Image.open(path_to_image).convert('LA')
+    return crop_even(img)
+
+def compress_img(lum, compression_factor):
+    lum = compress2D(lum, tuple([compression_factor]*2))
+    # compress without taking the average 
+    lum = compress2D(lum, (2, 4), average=False)
+    return lum
+
+def map_to_lum(img):
+    width, _ = img.size
+    return [l[0] for l in img.getdata()]
+
+def get_avg_lum(lum):
+    return reduce(lambda a, b: a + b, lum) / len(lum)
+
+def print_luminance_map(luminance2D, compare_value, invert):
+    rowsz = len(luminance2D[1])
+    col_idx = 0  
+    for row in luminance2D: 
+        for code in row: 
+            col_idx += 1 
+            if col_idx % rowsz == 0:
+                print('\n', end='')
+            else: 
+                char = get_braille_char(binarize(code, compare_value, invert))
+                print(char, end='')
+
+
+def get_out_img_dims(luminance2D, font, compare_value, invert):
+    h = reduce(lambda a, b: a + b, map(lambda code : get_braille_char(binarize(code, compare_value, invert)), luminance2D[0]))
+    width, single_row_height = font.getsize(h)
+    return (width, single_row_height)
+
+def map_codes_to_symbols(luminance2D, font, compare_value, invert):
+    return (
+    [
+        reduce(lambda a, b: a + b, [get_braille_char(binarize(code, compare_value, invert)) for code in row]) 
+        for row in luminance2D
+    ]
+    )
+
+def draw_out_img(charmap2D, out_img:Image, row_height, font):
+    imgDraw = ImageDraw.Draw(out_img)
+    i = 0
+    for row in charmap2D:
+        h = i * row_height
+        imgDraw.text((0, h), row, font=font)
+        i+=1
+
+
 if __name__ == '__main__':
     import sys
-
+    import subprocess
     
     parser = ArgumentParser()
-    parser.add_argument('filename')
+    parser.add_argument('filenames', nargs='+')
     parser.add_argument('-i', default=False, action='store_true')
     parser.add_argument('-c', default=128, type=int)
     parser.add_argument('-f', default=2, type=int)
 
     args = parser.parse_args()
 
-    # convert to black/white
-    img = Image.open(args.filename).convert('LA')
+    img_index = 0
+    for filename in args.filenames:
 
-    img = crop_even(img)
+        img = prepare_image(filename)
+        width, height = img.size 
 
-    x, y = img.size
+        lum = map_to_lum(img)
+        avg_lum = get_avg_lum(lum)
+
+        lum2D = map2D(lum, width)
+        lum2D_compressed = compress_img(lum2D, args.f)
+
+        f = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 12)
+        t = get_out_img_dims(lum2D_compressed, f, avg_lum, args.i)
+        m = map_codes_to_symbols(lum2D_compressed, f, avg_lum, args.i)
+
+        out_img = Image.new('LA', (t[0], t[1]*len(m)), 'black')
+
+        draw_out_img(m, out_img, t[1], f)
+
+        out_img.save('./ascii/out' + str(img_index) + '.png', 'PNG')
+        img_index += 1
+
+        # print_luminance_map(lum2D_compressed, avg_lum, args.i)
     
-    lum = map2D(list(map(lambda l : l[0], img.getdata())), x) 
+    
 
-    lum = compress2D(lum, tuple([args.f]*2))
-
-    # compress without taking the average 
-    lum = compress2D(lum, (2, 4), average=False)
-
-    rowsz = len(lum[1])
-    col_idx = 0  
-    for row in lum: 
-        for code in row: 
-            col_idx += 1 
-            if col_idx % rowsz == 0:
-                print('\n', end='')
-            else: 
-                char = get_braille_char(binarize(code, args.c, args.i))
-                print(char, end='')
+    
