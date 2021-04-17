@@ -26,24 +26,6 @@ def crop_even(img):
     return img
 
 
-def bin_to_arr(num, bits=8):
-    """ converts a binary number to an array of ints 
-
-    Args:
-        num ([type]): the binary number to be converted
-        bits (int, optional): the width of the number. Defaults to 8.
-
-    Returns:
-        [type]: array that contains every pixel from the original number
-        beginning with the highest bit 
-    """
-    res = []
-    for i in range(0, bits):
-        res.append(1 if num & 1 << i > 0 else 0)
-    res = list(reversed(res))
-    return res
-
-
 def arr_to_bin(arr):
     """ converts an array of integers to a binary number, starting from the highest bit
         e.g arr_to_bin([1,0,1,0], 4) => 0b1010
@@ -59,75 +41,19 @@ def arr_to_bin(arr):
     return res
 
 
-def get_braille_char(arr):
-    """ takes an array of bits and returns the braille representation of that array.
-    the highest bit represents the upper left dot. breaks into a new column after
-    the 4th bit. array MUST be 8 bits long
-    e.g 
-    [0,0,0,1,1,1,1,1,1] => ⣰
-
-    Args:
-        arr ([type]): array representing the braille
-
-    Returns:
-        [type]: the unicode braille char 
-    """
-    def swap(x, y):
-        tmp = arr[x]
-        arr[x] = arr[y]
-        arr[y] = tmp
-
-    swap(3, 4)
-    swap(4, 5)
-    swap(5, 6)
-    # 10240 is the base of the braille unicode block
-    return chr(arr_to_bin(arr) + 10240)
-
-
-def __get_chunk(offset, chunksize, arr):
-    res = []
-    xsize, ysize = chunksize
-    xoff, yoff = offset
-    for i in range(0, xsize):
-        for j in range(0, ysize):
-            res.append(arr[j+yoff][i+xoff])
-    return res
-
-
-def binarize(lums, compare=128, invert=False):
-    if invert:
-        return list(map(lambda pixel: 1 if pixel <= compare else 0, lums))
-    else:
-        return list(map(lambda pixel: 1 if pixel > compare else 0, lums))
-
-
-def print_luminance_map(luminance2D, compare_value, invert):
-    rowsz = len(luminance2D[1])
-    col_idx = 0
-    for row in luminance2D:
-        for code in row:
-            col_idx += 1
-            if col_idx % rowsz == 0:
-                print('\n', end='')
-            else:
-                char = get_braille_char(binarize(code, compare_value, invert))
-                print(char, end='')
-
 def draw_out_img(charmap2D, out_image, font):
     draw = ImageDraw.Draw(out_image)
-
     image_str = ''
-
+    i = 0
     for row in charmap2D:
-        image_str += (row + '\n')
+        nrow = row
+        print(nrow)
+        image_str += (nrow + '\n')
+        i += 1
 
     draw.multiline_text((0, 0), image_str, font=font, fill='white')
-    
 
 
-
-def get_img_dims(luminance2D, font):
-    h = len(luminance2D[0])
-    width, single_row_height = font.getsize('⣿' * h)
+def get_img_dims(rowsz, font):
+    width, single_row_height = font.getsize('⣿' * rowsz)
     return (width, single_row_height)
-

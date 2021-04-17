@@ -4,15 +4,13 @@ import sys
 import numpy as np
 from PIL import Image
 
-from converter.braille_mapper import Braille
-from converter.compress import compress
-from converter.numpy_util import numpy_avg_lum, numpy_map_2d
+import converter.braille_mapper as braille_mapper
+from converter.compress import Compressor
 from converter.util import crop_even, draw_out_img, get_img_dims
-
+from converter.numpy_util import numpy_map_2d
 
 def read_stdin(num_bytes):
     return sys.stdin.buffer.read(num_bytes)
-
 
 class BMP:
     HEADER_BLK_SZ = 14
@@ -25,10 +23,6 @@ class BMP:
         self.header_blk = None
         self.info_blk = None
         self.pixel_data = None
-        self.bytes_read = 0
-
-    def count(self, add_bytes):
-        self.bytes_read += add_bytes
 
     def __read_header_blk(self):
         self.header_blk = BMPHeader(struct.unpack(
@@ -55,6 +49,11 @@ class BMP:
         return self.info_blk.get_size()
 
     def read(self):
+        """read bmp data from stdin and return the raw pixel data
+
+        Returns:
+            [type]: [description]
+        """        
         self.__read_header_blk()
         self.__read_info_blk()
         self.__read_pixels()
@@ -103,56 +102,75 @@ class BMPInfoBlock:
         return str(vars(self))
 
 
-class BMPWriter:
 
+class BMPTransformer:
+    """
+    reads bmp images from stdin and transforms them to braille strings   
+    """
     def __init__(self, compression_factor, dest, font):
-        self.image_dims = None
+        
         self.compression_factor = compression_factor
         self.dest = dest
         self.font = font
-        self.braille = Braille()
 
-    def read_bmp(self):
+        self.braille = braille_mapper.Braille()
+        self.image_dims = None
+        self.luminance_data = []
+        self.average_luminance = 0
 
+    def write_braille_image(self):
+        """reads bmp data from stdin and writes to self.dest
+        """        
         # read bmp from stdin
         bmp: BMP = BMP()
         bmp.read()
+        # map to greyscale
+        greyscale_img = bmp.to_pil_greyscale_image()
+        # crop to even dimensions
+        greyscale_img = crop_even(greyscale_img)
+        # create array of braille strings
+        braille_image = self.map_to_braille_image(greyscale_img, self.compression_factor)
 
-        im = bmp.to_pil_greyscale_image()
+        width, single_row_height = self._get_image_dims()
+        height = single_row_height * len(braille_image[0])
 
-        f, t, m = self.convert_from_bin(im, self.compression_factor)
-        width, single_row_height = t
+        out_image = Image.new('L', (width, height), 'black')
+        
+        # draws the braille strings onto a pil image (takes long)
+        draw_out_img(braille_image, out_image, self.font)
 
-        img = Image.new('L', (width, single_row_height * len(m)), 'black')
-
-        draw_out_img(m, img, f)
-
+        # flip image vertically since BMP starts from bottom right corner
         if bmp.info_blk.is_bottom_up():
-            img = img.transpose(Image.ROTATE_180)
+            out_image = out_image.transpose(Image.ROTATE_180)
 
-        img.save(self.dest, 'BMP')
+        out_image.save(self.dest, 'BMP')
 
-    def convert_from_bin(self, img_bytes, compression_factor):
+    def map_to_braille_image(self, pil_greyscale_img, compression_factor):
+        
+        width, _ = pil_greyscale_img.size
+        self.luminance_data = np.asarray(pil_greyscale_img)
+        self.average_luminance = np.average(self.luminance_data)
+        # map to 2d
+        
+        luminance_2d = numpy_map_2d(self.luminance_data, width)
+        
+        compressor = Compressor()
+        # take AxB Chunks and average them to a single value.
+        self.luminance_data = compressor.compress_by_averages(luminance_2d, (compression_factor, compression_factor))
 
-        img = crop_even(img_bytes)
+        # map to 2x4 Cells 
+        self.luminance_data = compressor.map_to_braille_cells(self.luminance_data)
 
-        width, _ = img.size
+        return self.braille.map_codes_to_symbols(self.luminance_data, self.average_luminance, False)
 
-        lum = np.asarray(img)
-        avg_lum = numpy_avg_lum(lum)
-
-        lum2D = numpy_map_2d(lum, width)
-        lum2D_compressed = compress(lum2D, compression_factor)
-
+        
+    def _get_image_dims(self):
         if self.image_dims:
-            out_image_dims = self.image_dims
-
+            return self.image_dims
         else:
-            out_image_dims = get_img_dims(
-                lum2D_compressed, self.font)
+            out_image_dims = get_img_dims(len(self.luminance_data[0]), self.font)
             self.image_dims = out_image_dims
+            return self.image_dims
 
-        braille_mapped_image = self.braille.map_codes_to_symbols(
-            lum2D_compressed, avg_lum, False)
 
-        return (self.font, out_image_dims, braille_mapped_image)
+    
