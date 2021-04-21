@@ -1,12 +1,16 @@
+import struct
+import subprocess as sp
+import sys
+from argparse import ArgumentParser
+
+import numpy
 import PIL as p
 from PIL import ImageFont, ImageOps
+from profilehooks import profile
+
 from converter.bmp import BMPReader, BMPTransformer, BMPWriter
-import sys
-import subprocess as sp
-import struct
-from argparse import ArgumentParser
 from converter.util import crop_even
-import numpy
+
 
 def src_dst_from_args(args):
     if args.i:
@@ -30,9 +34,8 @@ def src_dst_from_args(args):
     
     return source, dest
 
-if __name__ == '__main__':
-    png = ''
-    i = 0
+@profile
+def main():
     numpy.set_printoptions(threshold=sys.maxsize)
     ag = ArgumentParser()
     
@@ -74,5 +77,10 @@ if __name__ == '__main__':
             source.close()
             sys.exit(0)
 
+
+
+if __name__ == '__main__':
+
+    main()
     
 
