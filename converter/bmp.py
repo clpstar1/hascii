@@ -4,9 +4,11 @@ import sys
 import numpy as np
 from PIL import Image, ImageDraw
 
-import converter.braille_mapper as bm
+import converter.util_cython as uc
+
 from converter.compress import Compressor
-from converter.numpy_util import numpy_map_2d
+from converter.util_numpy import numpy_map_2d
+
 
 
 class BMPReader:
@@ -49,23 +51,17 @@ class BMPReader:
         pixels = self.read_n_bytes(
             self.info_blk.get_pixel_data_size())
 
-        self.pixel_data = bytearray()
         # bmp files are padded so that every new row starts at % 4 == 0
         if width % 4 != 0: 
             padding = 0
             while (width+padding) % 4 != 0:
                 padding += 1 
-        
+            
             bytes_per_pixel = self.info_blk.bitcount // 8 
             bytes_per_row = width * bytes_per_pixel + padding
 
-            prev_width = 0
-            width = bytes_per_row
-            # cut off padding after each row.
-            for _ in range(0, height):
-                self.pixel_data += pixels[prev_width: width - padding]
-                prev_width += bytes_per_row 
-                width += bytes_per_row
+            self.pixel_data = uc.skip_padding(pixels, height, bytes_per_row, padding)
+            
         else:
             self.pixel_data = pixels
 
@@ -166,7 +162,6 @@ class BMPWriter:
 
         width, single_row_height = self._get_image_dims(braille_array)
         height = single_row_height * (len(braille_array))
-        print(width, height)
 
         out_image = Image.new('L', (width, height), 'black')
 
@@ -201,7 +196,7 @@ class BMPTransformer:
 
     def map_to_braille_array(self, pil_greyscale_img):
         compressor = Compressor()
-        braille_mapper = bm.BrailleMapper()
+        braille_mapper = uc.BrailleMapper()
 
         luminance_2d = np.asarray(pil_greyscale_img)
         average_luminance = np.average(luminance_2d)
@@ -217,14 +212,14 @@ class BMPTransformer:
 
 def draw_out_img(charmap2D, out_image, font, print_rows=False):
     draw = ImageDraw.Draw(out_image)
-    image_str = ''
 
-    for row in charmap2D:
-        if print_rows:
-            print(row)
-        image_str += row + '\n'
+    image_str = uc.cat_rows(charmap2D)
+
+    if print_rows:
+        print(image_str)
 
     draw.multiline_text((0, 0), image_str, font=font, fill='white')
+
 
 
 def get_img_dims(rowsz, font):

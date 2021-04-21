@@ -7,3 +7,4 @@ media
 *.c
 *.so
 ./converter/*.so
+scraps

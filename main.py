@@ -1,3 +1,4 @@
+import PIL as p
 from PIL import ImageFont, ImageOps
 from converter.bmp import BMPReader, BMPTransformer, BMPWriter
 import sys
@@ -42,7 +43,7 @@ if __name__ == '__main__':
 
     args = ag.parse_args()
 
-    font = ImageFont.truetype('/usr/share/fonts/truetype/DejaVuSans.ttf', 8 )
+    font = ImageFont.truetype('/usr/share/fonts/truetype/DejaVuSans.ttf', 8)
 
     source, dest = src_dst_from_args(args)
     comp = tuple(args.c) if args.c else (1,1)

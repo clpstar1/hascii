@@ -1,6 +1,7 @@
 import sys
 
 import numpy as np
+import converter.util_cython as uc
 
 
 class Compressor:
@@ -11,10 +12,13 @@ class Compressor:
         self.padding = {}
 
     def map_to_braille_cells(self, np_array_2d):
-        return self.compress(np_array_2d, Compressor.BRAILLE_CHUNK_SIZE)
+        if not is_divisible(np_array_2d, Compressor.BRAILLE_CHUNK_SIZE):
+            np_array_2d = self._pad_array_2D(Compressor.BRAILLE_CHUNK_SIZE, np_array_2d)
+
+        np_array_2d = reshape_into_chunk(np_array_2d, Compressor.BRAILLE_CHUNK_SIZE)
+        return np_array_2d.swapaxes(2,3).reshape(np_array_2d.shape[0], np_array_2d.shape[1], -1)
 
     def compress_by_averages(self, np_array_2d, chunksize: tuple):
-        # take averages across compression_factor x compression_factor cells
         if not is_divisible(np_array_2d, chunksize):
            np_array_2d = self._pad_array_2D(chunksize, np_array_2d)
 
@@ -22,18 +26,6 @@ class Compressor:
         np_array_2d = np_array_2d.reshape(np_array_2d.shape[0], np_array_2d.shape[1], -1)
 
         return np.average(np_array_2d, axis=2)
-    
-    def compress(self, np_array_2d, chunksize: tuple):
-        #if not is_divisible(np_array_2d, chunksize):
-        #    np_array_2d = self._pad_array_2D(chunksize, np_array_2d)
-
-        # np_array_2d = np.pad(np_array_2d, [(0,0), (0,2)], constant_values=255)
-
-        np_array_2d = reshape_into_chunk(np_array_2d, chunksize)
-        
-        tmp = np_array_2d.swapaxes(2,3).reshape(np_array_2d.shape[0], np_array_2d.shape[1], -1)
-
-        return tmp
 
     def _pad_array_2D(self, chunksize:tuple, np_array_2d):
         arr_w, arr_h = np_array_2d.shape
@@ -47,7 +39,7 @@ class Compressor:
         try:
             return self.padding[arr_dim + chunk_dim]
         except KeyError:
-            padding = (get_padding(arr_dim[0], chunk_dim[0]), get_padding(
+            padding = (uc.get_padding(arr_dim[0], chunk_dim[0]), uc.get_padding(
                 arr_dim[1], chunk_dim[1]))
             self.padding[arr_dim + chunk_dim] = padding
             return padding
@@ -72,23 +64,7 @@ def reshape_into_chunk(np_arr_2D, chunksize:tuple):
     except ValueError as e:
         print(str(e), file=sys.stderr)
         print(
-            f'probably caused by invalid chunskize: [ARR: {np_arr_2D.shape}] [CHUNK: {chunk_rowsz}, {chunk_colsz}], RETRYING:', file=sys.stderr)
-
-# a = 11
-# b = 4
+            f'probably caused by invalid chunskize: [ARR: {np_arr_2D.shape}] [CHUNK: {chunk_rowsz}, {chunk_colsz}]', file=sys.stderr)
 
 
-def get_padding(a, b):
-    if b > a:
-        raise ValueError
 
-    if a == b:
-        return 0
-
-
-    diff = 0
-    while a % b != 0:
-        diff += 1
-        a += 1
-
-    return diff
