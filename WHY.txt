@@ -1,1 +1,2 @@
 - braille has no name xxx -> cythonize !!!
+import converter.braille_mapper as braille_mapper

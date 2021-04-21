@@ -1,7 +1,7 @@
 from functools import reduce
+import numpy as np
 
-
-class Braille:
+class BrailleMapper:
 
     def __init__(self):
         self.symbol_cache = {}
@@ -21,11 +21,23 @@ class Braille:
                     self.symbol_cache[as_tuple] = braille
 
                 res.append(braille)
-            frame = reduce(lambda a, b: a + b, res)
-            res2.append(frame)
+            res2.append(res)
+        
 
-        return res2
+        return [reduce(lambda a,b: a+b, row) for row in res2]
 
+def get_braille_2(arr):
+    def swap(x, y):
+        tmp = arr[x]
+        arr[x] = arr[y]
+        arr[y] = tmp
+
+    swap(3, 4)
+    swap(4, 5)
+    swap(5, 6)
+    # 10240 is the base of the braille unicode block
+    out_char = chr(arr_to_bin(arr) + 10240)
+    return out_char
 
 def get_braille_char(arr):
     """
@@ -36,6 +48,8 @@ def get_braille_char(arr):
     the 4th bit. array MUST be 8 bits long
     e.g
     [0,0,0,1,1,1,1,1,1] => ⣰
+
+    [0,0,0,0,1,1,1,1] => []
 
     Args:
         arr ([type]): array representing the braille
@@ -49,11 +63,12 @@ def get_braille_char(arr):
         arr[x] = arr[y]
         arr[y] = tmp
 
-    swap(3, 4)
+    swap(3, 4) 
     swap(4, 5)
     swap(5, 6)
     # 10240 is the base of the braille unicode block
-    return chr(arr_to_bin(arr) + 10240)
+    out_char = chr(arr_to_bin(arr) + 10240)
+    return out_char
 
 
 def binarize(lums, compare=128, invert=False):
